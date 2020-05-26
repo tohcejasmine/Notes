@@ -2,3 +2,9 @@
 NUS/\[AY1617 Sem 1\] MA1102R Calculus \(Maple Commands\).pdf
 NUS/CS2010 Resources
 NUS/\[AY1718 Sem 1\] CS1020 Data Structures and Algorithms I \(VIM quick ref card\).pdf
+
+# Ignore (recursively) notes in MS word files
+**/*.docx
+
+# Ignore images
+images
