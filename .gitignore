@@ -9,3 +9,6 @@ NUS/CS2103 Resources
 
 # Ignore images
 images
+
+# Don't ignore WIP notes
+!**/WIP/*.docx
