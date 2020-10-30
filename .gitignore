@@ -4,11 +4,14 @@ NUS/CS2010 Resources
 NUS/\[AY1718 Sem 1\] CS1020 Data Structures and Algorithms I \(VIM quick ref card\).pdf
 NUS/CS2103 Resources
 
-# Ignore (recursively) notes in MS word files
+# Ignore (recursively) MS word docs
 **/*.docx
 
-# Ignore images
+# Folders to ignore
 images
+course_materials
+Readings
+uncommittable
 
 # Don't ignore WIP notes
 !**/WIP/*.docx
