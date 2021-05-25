@@ -3,9 +3,9 @@
 2. Learn what are RESTful APIs
 3. Learn what is Flask
 4. Build a simple Flask application
-  * Link application to a database (MongoDB/SQL)
-  * Set authenticated login (OAuth)
-  * Allow upload of different media (photos, files)
+    * Link application to a database (MongoDB/SQL)
+    * Set authenticated login (OAuth)
+    * Allow upload of different media (photos, files)
 5. Learn to test APIs using Postman
 6. Learn how to write API documentation
 
@@ -86,7 +86,7 @@
   * RESTful refers to _web services_ implementing such an architecture
 
 
-## Principles when designing Requests
+## Principles when designing RESTful APIs
 1. **Verbs should not appear in request URL**
   * Don't use `GET`, `DELETE` etc in API endpoints, implies that corresponding HTTP method is used
 2. **Resource collections should be denoted with plural nouns**
@@ -304,6 +304,113 @@ statusCode: 5XX - Server error
 Detailed information:
 * Refer to PDF _HTTP Status Codes_, from [restapitutorial](https://www.restapitutorial.com/httpstatuscodes.html#)
 
+## Design pattern: Exception/Error handling
+
+* **Key takeaways**
+  * Exceptions are there are _abnormal conditions_, not those that are reasonably expected
+  * Complier implementors usually expect exceptions to be set up often but thrown rarely, hence throw code are usually quite inefficient
+  * Use log levels appropriately, decide when to log whole stack trace (ask  yourself if this information is useful in the context) and when to just log a message
+
+* **Defining exception types**
+  * Exception names should be clear and meaning
+  * State the causes of exception
+  * _Fatal_: system crash states
+  * _Error_: lack of requirement
+  * _Warn_: not an error but error probability
+  * _Info_: info for user
+  * _Debug_: info for developer
+
+* **When to throw exceptions**
+  * When method cannot handle abnormal condition
+  * If need to re-throw, throw same exception and consider adding more information in each layer first
+  * When error conditions met in method (don't return -1, -2, -3 etc values for invalidness)
+
+* **When not to throw exceptions**
+  * When method will return null, control with if-else statements instead (null control)
+  * For flow control/managing business logic
+
+* **What exceptions to catch**
+  * Catch specific exceptions instead of most generic Exception class (more readable)
+  * When method returns NullPointerException (null control)
+
+* **Handling exceptions**
+  * Ignoring exceptions will create chaos for maintainability later
+  * Minimally log some information or perform an action
+  * Avoid logging same exception more than once
+  * Always clean up resources
+    * E.g. opened files etc
+    * In `finally` block
+    * Recover object to safe state (in cases like e.g. disk full, failed network connection etc) in languages without garbage collection or when there is exception-handling in a class constructor
+  *  
+
+Python code examples:
+
+```
+## EXAMPLE 1
+    # Returns "Exception <type 'exceptions.ZeroDivisionError'> occurred."
+try:
+    ...
+except:
+    print(f"Exception {sys.exc_info()[0]} occurred.")
+```
+```
+## EXAMPLE 2
+    # First line is messaged passed in as param, subsequent lines are full stack trace (including exception type)
+    # By default, uses log level of ERROR
+try:
+    ...
+except Exception:
+    logger.exception("Fatal error in main loop")
+
+## EXAMPLE 3
+    # Logging will include full stack trace, logging level can be varied
+try:
+    ...
+except Exception:
+    logger.error("Fatal error in main loop", exc_info=True)
+```
+```
+## EXAMPLE 4
+    # Re-throw an exception but preserve full stack trace
+    # Also known as "Exception Chaining"
+    # Happens automatically when exception raised inside except or finally section
+    # Provides traceback for both exceptions raised
+    # Raised exception has attribute __cause__ whose value is the instigating exception
+
+# Includes statement "The above exception was the direct cause of the following exception:"
+try:
+    ...
+except IOError as exc:
+    raise RuntimeError("Failed to open database") from exc
+
+# Includes statement "During handling of the above exception, another exception occurred:"
+try:
+    ...
+except IOError as exc:
+    raise RuntimeError("Failed to open database")
+
+## EXAMPLE 5
+    # To disable exception chaining
+try:
+    ...
+except OSError:
+    raise RuntimeError from None
+```
+```
+## EXAMPLE 6
+    # Log an event before propagating exception to be handled at a higher level
+    # Not exactly handling exception
+    # When there is a higher-level handler for error
+    # Useful in troubleshooting
+try:
+    ...
+except SomeError:
+    logger.warn("...")
+    raise
+```
+
+
+
 # References
 * Microservices
   * https://smartbear.com/solutions/microservices/
@@ -319,9 +426,14 @@ Detailed information:
   * https://github.com/realpython/discover-flask
 * Appendix
   * HTTP Status Codes: https://www.restapitutorial.com/httpstatuscodes.html
+  * Design pattern: Exception/Error handling: https://www.tutorialspoint.com/python_design_patterns/python_design_patterns_exception_handling.htm, http://wiki.c2.com/?ExceptionPatterns, http://codebuild.blogspot.com/2012/01/15-best-practices-about-exception.html, https://www.loggly.com/blog/exceptional-logging-of-exceptions-in-python/
 
-# Review
 
-| Date | Tasks | Takeaways |
-| --- | --- | --- |
-| 24 May 2021 | FUUU | * Add in links to blogs |
+
+
+
+
+* https://www.udemy.com/course/advanced-rest-apis-flask-python/ has OAuth, Postman tests
+* https://www.udemy.com/course/rest-api-flask-and-python/ has deployment to heroku, api security
+* https://www.udemy.com/course/restful-api-flask-course/
+* https://www.udemy.com/course/python-rest-apis-with-flask-docker-mongodb-and-aws-devops/
