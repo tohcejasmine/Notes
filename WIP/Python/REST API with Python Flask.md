@@ -342,6 +342,7 @@ def create_item_in_store(name):
 **Flask-RESTful**
 * Python library, an extension of Flask
 * Encourages best practices with minimal setup
+* Methods: `get`, `post`, `delete`, `put`
 
 Basic structure:
 1. Import library, create `Api` object
@@ -394,6 +395,42 @@ data = request.get_json(force=True)
 
 # Returns no error, returns None
 data = request.get_json(silent=True)
+```
+
+To add checks for fields in payload:
+* Use `reqparse` library
+* Instantiate parser as class variable
+* Parser will only filter and keep valid payload arguments in data
+* **Request will terminate when required field is not present**
+* Errors will be raised
+    * Example:
+      ```
+      {
+          "message": {
+              "price": "This field cannot be left blank!"
+          }
+      }    
+      ```
+* More thorough check than `request.get_json()`
+```
+from flask_restful import ..., reqparse
+...
+
+Class ResourceName:
+    # Set as class variable
+    parser = reqparse.RequestParser()
+    parser.add_argument(
+        'price',
+        type=float,
+        required=True,
+        help="This field cannot be left blank!"
+    )
+
+...
+def put(self, name):
+    # Only filter through valid payload arguments in data
+    data = Item.parser.parse_args()
+    ...
 ```
 
 ## Authentication (using _Flask-JwT_ library)
