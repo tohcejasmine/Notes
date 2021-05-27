@@ -553,6 +553,10 @@ Notes for authentication:
   ...safe_str_cmp(user.password, password)...
   ```
 
+# Deploying Application
+
+* Requires _nginx_ and _uwsgi_ setups
+
 # API Testing
 
 For **Headers**:
@@ -734,6 +738,158 @@ except SomeError:
     raise
 ```
 
+## _nginx_
+
+**Main steps:**
+1. Remove default config file
+2. Set app config file
+3. Enable nginx to read config file
+4. Create directory for app files
+    * Set owner to user
+    * Copy over app files
+    * pip install necessary libraries
+5. Create directory for log
+---
+
+Project folder: `/var/www/html/<app_name>`
+
+Remove default configuration file:
+* Avoid a 404 error
+```
+sudo rm /etc/nginx/site-available/default
+```
+
+Sample configuration parameters:
+* `/etc/nginx/site-available/<app_name>.conf`
+* To access an application's API
+```
+server {
+listen 80;
+real_ip_header X-Forwarded-For;
+set_real_ip_from 127.0.0.1;
+server_name localhost;
+
+location / {
+include uwsgi_params;
+uwsgi_pass unix:/var/www/html/<app_name>/socket.sock;
+uwsgi_modifier1 30;
+}
+
+error_page 404 /404.html
+location = /404.html {
+root /usr/share/nginx/html;
+}
+
+error_page 500 502 503 504 /50x.html;
+location = /50x.html {
+root /usr/share/nginx/html;
+}
+}
+```
+
+To enable nginx to read config file:
+* Creates a soft link between config file and _sites-enabled_ folder where nginx reads the config properties
+```
+sudo ln -s /etc/nginx/site-available/<app_name>.conf /etc/nginx/site-enabled/
+```
+
+Create directory where application will live:
+* Give permission to user since directory made by root user
+* Make user owner of directory (no longer needs `sudo`)
+```
+sudo mkdir /var/www/html/<app_name>
+sudo chown <group>:<user> /var/www/html/<app_name>
+
+# Clone application files to directory
+cd /var/www/html/<app_name>
+cp <filepath_to_app> /var/www/html/<app_name>
+
+# Install necessary libraries
+sudo apt-get install python-pip python3-dev libpq-dev
+# Set up virtual environment
+pip install -r requirements.txt
+```
+
+To produce logs for application:
+```
+mkdir /var/www/html/<app_name>/logs
+```
+
+Other commands:
+```
+sudo systemctl reload nginx
+sudo systemctl restart nginx
+```
+
+## _uWSGI_
+
+**Main steps:**
+1. Create a service
+2. Set config file
+3. Start service
+4. Check log for errors
+---
+
+To create an open service:
+* `/etc/systemd/system/uwsgi_<app_name>.service`
+* _Service_ is something that runs when computer/server starts/restarts/crashes
+* It is descriptor of a program, sets environment variables before service starts
+* _System daemon_ or `systemd` looks at the folder to see what services there are
+
+```
+[Unit]
+Descriptor=uWSGI <app_name>
+
+[Service]
+Environment=DATABASE_URL=postgres://<user>:<password>@localhost:<port>/<dbname>
+ExecStart=/var/www/html/<app_name>/venv/bin/uwsgi --master --emperor /var/www/html/<app_name>/uwsgi.ini --die-on-term --uid <user> --gid <group> --logto /var/www/html/<app_name>/logs/emperor.log
+Restart=always
+KillSignal=SIGQUIT
+Type=notify
+NotifyAccess=all
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Set configuration file for _uWSGI_:
+* `/var/www/html/<app_name>/uwsgi.ini`
+```
+[uwsgi]
+base = /var/www/html/<app_name>
+app = run
+module = %(app)
+
+home = %(base)/venv
+pythonpath = %(base)
+
+socket = %(base)/socket.sock
+
+chmod-socket = 777
+
+processes = 8
+
+threads = 8
+
+harakiri = 15
+
+callable = app
+
+logto = /var/www/html/<app_name>/log/%n.log
+```
+
+To start service:
+```
+sudo systemctl start uwsgi_<app_name>
+```
+
+To check if things are working fine:
+* Check the end of the log
+* Check after running the app, running a request
+* Errors should not be logged
+```
+cat var/www/html/<app_name>/log/uwsgi.log
+```
 
 
 # References
@@ -760,7 +916,6 @@ except SomeError:
 
 * https://www.udemy.com/course/advanced-rest-apis-flask-python/ has OAuth, Postman tests
 * https://www.udemy.com/course/rest-api-flask-and-python/ has deployment to heroku, api security
-* https://www.udemy.com/course/restful-api-flask-course/
 * https://www.udemy.com/course/python-rest-apis-with-flask-docker-mongodb-and-aws-devops/
 * Consider using OOP
 * https://martinfowler.com/articles/data-monolith-to-mesh.html
