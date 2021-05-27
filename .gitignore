@@ -12,6 +12,8 @@ images
 course_materials
 Readings
 uncommittable
+WIP/do_not_commit
+**/.ipynb_checkpoints
 
 # Don't ignore WIP notes
-!**/WIP/*.docx
+!**/WIP/**/*.docx
