@@ -1,13 +1,15 @@
 # Objectives
-1. Learn what are microservices
-2. Learn what are RESTful APIs
-3. Learn what is Flask
+1. [Learn what are microservices](#Microservices)
+2. [Learn what are RESTful APIs](#RESTful-API-Design)
+3. [Learn what is Flask](#Flask)
+    * Flask-RESTful library
 4. Build a simple Flask application
-    * Link application to a database (MongoDB/SQL)
     * Set authenticated login (OAuth)
+    * Link application to a database (MongoDB/SQL)
     * Allow upload of different media (photos, files)
-5. Learn to test APIs using Postman
-6. Learn how to write API documentation
+    * Dockerise and deploy to Kubernetes
+5. [Learn to test APIs using Postman](#API-Testing)
+6. [Learn how to write API documentation](#API-Documentation)
 
 # Microservices
 
@@ -59,7 +61,8 @@
 * _Resource_
   * An object important enough to be referenced in itself
   * Has data, relationships to other resources
-  * Has methods to allow access and manipulation of associated information
+  * Has methods to allow access and manipulation of associated information (`GET`, `POST` etc)
+  * Think of it like OOP, not in terms of data
 * _Collection_
   * A group of resources
 * _URL (Uniform Resource Locator)_
@@ -76,15 +79,39 @@
 * _HTTP (Hypertext Transfer Protocol)_
   * Primary means of communicating data on the web
   * Implements a number of methods, tells which direction data is moving and what should happen to it
-* HTTP methods
-  * `GET`: pulls data from server
-  * `POST`: push new data to server
-  * `PUT`: update existing data in server
-  * `DELETE`: delete existing data in server
 * Difference between REST and RESTful
   * REST is a style of _software architecture_
   * RESTful refers to _web services_ implementing such an architecture
+* _Stateless_
+  * A request cannot depend on any other requests
+  * Server only knows about current request, and not any previous requests
+  * Example: Web application must send enough data to identify the user **in every request** or else it won't associate the request with the user
 
+## HTTP Verbs
+
+What the server sees:
+```
+<verb> <path> <protocol>
+```
+Example:
+```
+GET /login HTTP/1.1
+Host: https://twitter.com
+```
+
+Possible responses to a request
+* Error, path not found
+* Error, protocol not supported
+* Error, server unavailable
+* HTML code (usual behaviour)
+* Some text
+
+| Verb | Meaning | Example | Data |
+| --- | --- | --- | --- |
+| `GET` | Retrieve something/pulls data from server | `GET /item/1` | |
+| `POST` | Receive data, and use it/push new data to server | `POST /item` | `{'name': 'Chair', 'price': 9.99}` |
+| `PUT` | Make sure something is there/update existing data in server | `PUT /item` | `{'name': 'Chair', 'price': 7.99}` |
+| `DELETE` | Remove something/delete existing data in server | `DELETE /item/1` | |
 
 ## Principles when designing RESTful APIs
 1. **Verbs should not appear in request URL**
@@ -240,14 +267,264 @@ EXAMPLE: .../users/123/posts/1
 * Small API, easy to learn and simple to use
 * Can support enterprise-level application handling large amounts of traffic
 * Up to developer to choose the tools and libraries to use
+  * `Flask`, `Flask-RESTful`, `Flask-JwT`
 
-## 
+Following course: https://www.udemy.com/course/restful-api-flask-course/
+
+## Basic structure of a Flask app
+
+```
+from flask import Flask
+
+# For application to know it is running from this file
+app = Flask(__name__)
+
+@app.route('/') # Homepage of site
+def home(): # Method name can be anything, route is the key
+    return "Harlow World!" # Will be shown on browser
+
+app.run(port=5000)
+# To get a HTML page showing errors in application
+app.run(port=5000, debug=True)
+```
+
+To start application, run:
+```
+py app.py
+```
+
+## Forming an API endpoint
+
+By default, an endpoint receives a `GET` request:
+* Also always return a JSON response (use `jsonify` on a Python dictionary)
+```
+from flask import Flask, jsonify 
+
+@app.route('/store')
+def get_store():
+    return jsonify({'stores': stores})
+```
+
+To receive other types of HTTP requests, specify in `methods` parameter:
+* Pass in parameters in method through URL through `<data_type:var_name>`
+```
+@app.route('/store/<string:name>/item', methods=['POST'])
+def create_item_in_store(name):
+    request_data = request.get_json()
+    for store in stores:
+        if store["name"] == name:
+            new_item = {
+                "name": request_data["name"],
+                "price": request_data["price"]
+            }
+            store["items"].append(new_item)
+            return jsonify(new_item)
+    return jsonify({"message": "store not found"})
+```
+
+## Basic structure of a Flask app (using _Flask-RESTful_ library)
+
+**Flask-RESTful**
+* Python library, an extension of Flask
+* Encourages best practices with minimal setup
+
+Basic structure:
+* Create resource as class
+* Add resource to api
+* No need to `jsonify`, library does it automatically
+
+```
+from flask import Flask
+from flask_restful import Resource, Api
+
+app = Flask(__name__)
+api = Api(app)
+
+# Every resource has to be a class
+class Student(Resource):
+    def get(self, name):
+        return {'student': name}
+
+api.add_resource(Student, ('/student/<string:name>')) # @app.route('/student/<string:name>')
+
+app.run(port=5000)
+```
+
+To set status code to response:
+* E.g. When no matching resource found, return null in a dictionary and status 404
+```
+class Item(Resource):
+    def get(self, name):
+        for item in items:
+            if item['name'] == name:
+                return item
+        return {'item': None}, 404
+    
+    ...
+```
+
+To use JSON payload from a request:
+* Same as regular Flask
+* Error returned when
+  * JSON payload not in request
+  * Wrong `Content-Type` header
+```
+data = request.get_json()
+
+# Force it to understand wrong header (dangerous)
+data = request.get_json(force=True)
+
+# Returns no error, returns None
+data = request.get_json(silent=True)
+```
+
+## Authentication (using _Flask-JwT_ library)
+
+1. Create a `User` class
+```
+class User:
+    def __init__(self, _id, username, password):
+        self.id = _id
+        self.username = username
+        self.password = password    
+```
+2. Create new file `security.py`
+  * **Data:** table of users, mappings
+  * **Functions:** authenticating, checking identity
+  * Use set-comprehension
+```
+from werkzeug.security import safe_str_cmp
+from user import user
+
+# Table of users
+users = [
+    User(1, 'Da Boss', 'meow123')
+]
+
+# Index by username
+username_mapping = {u.username: u for u in users}
+
+# Index by userid
+userid_mapping = {u.id: u for u in users}
+
+def authenticate(username, password):
+    user = username_mapping.get(username, None)
+    if user and safe_str_cmp(user.password, password):
+        return user
+
+def identity(payload): 
+    """
+    Input: contents of JwT token
+    """
+    user_id = payload['identity']
+    return userid_mapping.get(user_id)
+```
+
+which is an alternative to defining users in terms of dictionaries
+```
+# Table of users
+users = [
+    {
+        'id': 1,
+        'username': 'Da Boss',
+        'password': 'meow123'
+    }
+]
+
+# Index by username
+username_mapping = {
+    'Da Boss': {
+        'id': 1,
+        'username': 'Da Boss',
+        'password': 'meow123'
+    }
+}
+
+# Index by userid
+userid_mapping = {
+    1: {
+        'id': 1,
+        'username': 'Da Boss',
+        'password': 'meow123'        
+    }
+}
+```
+3. Update `app.py` file with the following lines:
+
+  * Import the necessary libraries and methods:
+```
+from flask_jwt import JWT
+
+from security import authenticate, identity
+```
+  * Here:
+    * New endpoint `\auth` created, takes in payload with username and password
+    * JWT sends username, password to `authenticate` function
+    * If authenticated, `\auth` endpoint returns a JWT token  
+```
+app.secret_key = 'meow' # keep secret
+jwt = JWT(app, authenticate, identity) # create endpoint /auth
+```
+  * To set endpoint to require a JWT token:
+```
+@jwt_required()
+def get(self, name):
+    ...
+```
+
+* **How `flask-jwt` works**
+  1. Send POST request to `\auth` endpoint
+      * Header: `Content-Type` | `application/json`
+      * Body: `raw` | `{'username': ..., 'password' ...}`
+  2. Flask JWT checks username, password with `authenticate` function
+  3. If valid, returns an `access_token`
+      * Correct token, not expired
+  4. Send POST request to endpoint which requires token (i.e. has decorator `@jwt_required()`)
+      * Header: `Authorization` | `JWT <token_from_step_2>`
+  5. Flask takes token in header, decodes it to retrieve the userid using `identity` function
+  5. If userid exists, it indicates that user is logged in
+  6. Method associated to endpoint is called, returns response as per usual
+
+**Notes for authentication:**
+* Use safe-string comparison using `werkzeug` library
+  * Avoid comparing strings directly using `==`
+  * Due to different Python versions and encodings (e.g. ascii, unicode)
+```
+from werkzeug.security import safe_str_cmp
+
+...safe_str_cmp(user.password, password)...
+```
+
+## Other things to note for API design
+* All methods names should be **unique**
+* Always return a text-form of a dictionary (use `jsonify`)
+  * **No lists**
+* JSON always uses **double-quotes**
+* Return an error if resource not found
+  * E.g. status code 404
+* Test-driven development
+  * Consider whether the endpoint is necessary or not
 
 
+# API Testing
 
+For **Headers**:
 
+* Type of data to send
+```
+Content-Type  | application/json
+```
 
+## Using Postman
 
+1. Select HTTP verb
+2. Enter URL
+3. If POST with data, let server expect JSON in body of request
+    * Set Header > Content-Type: application/json
+    * Enter Body > Raw > JSON data
+
+Tips:
+* Keep all API endpoints saved in Postman for easy testing
 
 
 # API Documentation
@@ -303,6 +580,8 @@ statusCode: 5XX - Server error
 
 Detailed information:
 * Refer to PDF _HTTP Status Codes_, from [restapitutorial](https://www.restapitutorial.com/httpstatuscodes.html#)
+* **Status code 202**: delaying the creation of a resource
+  * E.g. when creating takes a long, object is returned after some time
 
 ## Design pattern: Exception/Error handling
 
@@ -437,3 +716,5 @@ except SomeError:
 * https://www.udemy.com/course/rest-api-flask-and-python/ has deployment to heroku, api security
 * https://www.udemy.com/course/restful-api-flask-course/
 * https://www.udemy.com/course/python-rest-apis-with-flask-docker-mongodb-and-aws-devops/
+* Consider using OOP
+* https://martinfowler.com/articles/data-monolith-to-mesh.html
