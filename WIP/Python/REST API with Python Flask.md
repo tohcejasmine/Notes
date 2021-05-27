@@ -2,7 +2,8 @@
 1. [Learn what are microservices](#Microservices)
 2. [Learn what are RESTful APIs](#RESTful-API-Design)
 3. [Learn what is Flask](#Flask)
-    * Flask-RESTful library
+    * `Flask-RESTful` library
+    * `Flask-JwT` library
 4. Build a simple Flask application
     * Set authenticated login (OAuth)
     * Link application to a database (MongoDB/SQL)
@@ -99,7 +100,7 @@ GET /login HTTP/1.1
 Host: https://twitter.com
 ```
 
-Possible responses to a request
+Possible responses to a request:
 * Error, path not found
 * Error, protocol not supported
 * Error, server unavailable
@@ -115,90 +116,90 @@ Possible responses to a request
 
 ## Principles when designing RESTful APIs
 1. **Verbs should not appear in request URL**
-  * Don't use `GET`, `DELETE` etc in API endpoints, implies that corresponding HTTP method is used
+    * Don't use `GET`, `DELETE` etc in API endpoints, implies that corresponding HTTP method is used
 2. **Resource collections should be denoted with plural nouns**
-  * Make it clear that API is referring to a collection or an entry (e.g. `books` vs `book`)
+    * Make it clear that API is referring to a collection or an entry (e.g. `books` vs `book`)
 3. **Use query parameters**
-  * More flexible
-  * Allows filtering by multiple database fields
-  * Allows <u>"optional" data</u> to be provided
-  * Allows retrieval of information relating to a specific child resource
-    * Should nesting go too far (after 2nd/3rd level), consider directly returning the URL to those resources instead
+    * More flexible
+    * Allows filtering by multiple database fields
+    * Allows <u>"optional" data</u> to be provided
+    * Allows retrieval of information relating to a specific child resource
+      * Should nesting go too far (after 2nd/3rd level), consider directly returning the URL to those resources instead
   
-```
-GOOD: http://api.example.com/books?author=Ursula+K.+Le Guin&published=1969&output=xml
-GOOD: .../articles/:articleId/comments
-BAD: http://api.example.com/getbook/10
-```
+    ```
+    GOOD: http://api.example.com/books?author=Ursula+K.+Le Guin&published=1969&output=xml
+    GOOD: .../articles/:articleId/comments
+    BAD: http://api.example.com/getbook/10
+    ```
 
 4. **Allow filtering, sorting and pagination**
-  * Too much data should not be returned all at once, would be too slow/hang the system
-  * Increase performance by returning a few results at a time
-  * Consider specifying fields to sort by in query strings (e.g. `+` is ascending, `-` is descending)
+    * Too much data should not be returned all at once, would be too slow/hang the system
+    * Increase performance by returning a few results at a time
+    * Consider specifying fields to sort by in query strings (e.g. `+` is ascending, `-` is descending)
 
-```
-EXAMPLE: .../employees?lastName=Smith&age=30
-EXAMPLE: http://example.com/articles?sort=+author,-datepublished
-```
+    ```
+    EXAMPLE: .../employees?lastName=Smith&age=30
+    EXAMPLE: http://example.com/articles?sort=+author,-datepublished
+    ```
 
 5. **Plan for future additions and functionalities**
-  * Even if current version of API services information on only one type of resource, plan as if other resources of non-resource functionality will be added to the API in the future
-  * Add an <u>extra segment</u> on path (e.g. `/resource`, `/entries`) to allow users to search across all resources available
-  * Add a <u>version number</u> to path (e.g. `/v1`) such that old version of API can be supported even after redesigning the API
-    * _Note_: Usually APIs for different versions have different code/logic implementation, but exist in same script
-    * _Alternative_: Specify version in custom/access header
+    * Even if current version of API services information on only one type of resource, plan as if other resources of non-resource functionality will be added to the API in the future
+    * Add an <u>extra segment</u> on path (e.g. `/resource`, `/entries`) to allow users to search across all resources available
+    * Add a <u>version number</u> to path (e.g. `/v1`) such that old version of API can be supported even after redesigning the API
+      * _Note_: Usually APIs for different versions have different code/logic implementation, but exist in same script
+      * _Alternative_: Specify version in custom/access header
 
-```
-GOOD: https://api.example.com/v1/resources/books?id=10
-GOOD: https://api.example.com/v1/resources/images?id=10
-GOOD: https://api.example.com/v1/resources/all
+    ```
+    GOOD: https://api.example.com/v1/resources/books?id=10
+    GOOD: https://api.example.com/v1/resources/images?id=10
+    GOOD: https://api.example.com/v1/resources/all
 
-# Custom header     | used by service, route request to correct endpoint
-EXAMPLE: X-API-VERSION
-# Accept header
-EXAMPLE: Accept: application/vnd.hashmapinc.v2+json
+    # Custom header     | used by service, route request to correct     endpoint
+    EXAMPLE: X-API-VERSION
+    # Accept header
+    EXAMPLE: Accept: application/vnd.hashmapinc.v2+json
 
-```
+    ```
 
 6. **Base URL should be neat, elegant and simple**
-  * Easier for developers to use
-  * Less prone to mistakes during coding
+    * Easier for developers to use
+    * Less prone to mistakes during coding
 7. **Provide good response feedback**
-  * Messages should be self-descriptive
-  * Positive validation on correct implementation
-  * Informative error on incorrect implementation that can help users debug and correct the way they use the product
-  * Use errors to provide context to using an API, <u>align errors around standard HTTP codes</u>
-  * Successful requests to add new resources should return URI of newly created resource in Location header
+    * Messages should be self-descriptive
+    * Positive validation on correct implementation
+    * Informative error on incorrect implementation that can help users debug and correct the way they use the product
+    * Use errors to provide context to using an API, <u>align errors around standard HTTP codes</u>
+    * Successful requests to add new resources should return URI of newly created resource in Location header
 
-```
-# Refer to Appendix for more
-statusCode: 4XX - Client/application error
-statusCode: 5XX - Server/API error
-statusCode: 2XX - Client and API worked
-```
+    ```
+    # Refer to Appendix for more
+    statusCode: 4XX - Client/application error
+    statusCode: 5XX - Server/API error
+    statusCode: 2XX - Client and API worked
+    ```
 
 8. **Design in mind to handle large payloads efficiently**
-  * Reduce size pagination, break data into smaller chunks
-  * Extending pagination, organise using common hypermedia formats
-  * Provide option of schema filtering
-  * Allow users to define representation of resource requests (e.g. simple, complete etc)
-  * Use caching for more efficient responses
-  * Use HTTP Compression to reduce API response size (e.g. DEFLATE, GzIP)
-  * Break responses into chunks, send in order
-  * Stream using HTTP with standards like Server-Sent Events (SSE) to deliver large volumes of data as streams (individual updates received by user in a continuous long-running HTTP request)
+    * Reduce size pagination, break data into smaller chunks
+    * Extending pagination, organise using common hypermedia formats
+    * Provide option of schema filtering
+    * Allow users to define representation of resource requests (e.g. simple, complete etc)
+    * Use caching for more efficient responses
+    * Use HTTP Compression to reduce API response size (e.g. DEFLATE, GzIP)
+    * Break responses into chunks, send in order
+    * Stream using HTTP with standards like Server-Sent Events (SSE) to deliver large volumes of data as streams (individual updates received by user in a continuous long-running HTTP request)
 9. **Common considerations for URLs**
-  * Use lower casing
-  * Separate words with underscores (_) or hypens (-)
-  * Keep as short as possible
+    * Use lower casing
+    * Separate words with underscores (_) or hypens (-)
+    * Keep as short as possible
 10. **Other principles to keep in mind**
-  * Design for your clients, not for your data
-  * Leverage the hierarchical nature of the URL to imply structure
-  * Provide APIs that pretty prints by default
+    * Design for your clients, not for your data
+    * Leverage the hierarchical nature of the URL to imply structure
+    * Provide APIs that pretty prints by default
 
-```
-# Get post with ID 1 by user with ID 123
-EXAMPLE: .../users/123/posts/1
-```
+    ```
+    # Get post with ID 1 by user with ID 123
+    EXAMPLE: .../users/123/posts/1
+    ```
 
 ## Good security practices
 
@@ -268,8 +269,17 @@ EXAMPLE: .../users/123/posts/1
 * Can support enterprise-level application handling large amounts of traffic
 * Up to developer to choose the tools and libraries to use
   * `Flask`, `Flask-RESTful`, `Flask-JwT`
+* **Things to note for API design**
+  * All methods names should be **unique**
+  * Always return a text-form of a dictionary (use `jsonify`)
+    * **No lists**
+  * JSON always uses **double-quotes**
+  * Return an error if resource not found
+    * E.g. status code 404
+  * Test-driven development
+    * Consider whether the endpoint is necessary or not
 
-Following course: https://www.udemy.com/course/restful-api-flask-course/
+Notes follow course: https://www.udemy.com/course/restful-api-flask-course/
 
 ## Basic structure of a Flask app
 
@@ -295,10 +305,14 @@ py app.py
 
 ## Forming an API endpoint
 
-By default, an endpoint receives a `GET` request:
-* Also always return a JSON response (use `jsonify` on a Python dictionary)
+Import `jsonify` library to always return a JSON response:
+* Use on Python dictionaries
 ```
 from flask import Flask, jsonify 
+```
+
+By default, an endpoint receives a `GET` request:
+```
 
 @app.route('/store')
 def get_store():
@@ -306,7 +320,8 @@ def get_store():
 ```
 
 To receive other types of HTTP requests, specify in `methods` parameter:
-* Pass in parameters in method through URL through `<data_type:var_name>`
+* Pass in URL values to method parameters with `<data_type:var_name>`
+* Access payload data with `request.get_json()`
 ```
 @app.route('/store/<string:name>/item', methods=['POST'])
 def create_item_in_store(name):
@@ -329,9 +344,11 @@ def create_item_in_store(name):
 * Encourages best practices with minimal setup
 
 Basic structure:
-* Create resource as class
-* Add resource to api
-* No need to `jsonify`, library does it automatically
+1. Import library, create `Api` object
+2. Create resource as a class
+    * No need `@app.route()`
+    * No need to return `jsonify`, library does it automatically
+3. Add resource to `Api` object
 
 ```
 from flask import Flask
@@ -345,12 +362,13 @@ class Student(Resource):
     def get(self, name):
         return {'student': name}
 
-api.add_resource(Student, ('/student/<string:name>')) # @app.route('/student/<string:name>')
+# Same as @app.route('/student/<string:name>')
+api.add_resource(Student, ('/student/<string:name>')) 
 
 app.run(port=5000)
 ```
 
-To set status code to response:
+To set response status code:
 * E.g. When no matching resource found, return null in a dictionary and status 404
 ```
 class Item(Resource):
@@ -364,7 +382,7 @@ class Item(Resource):
 ```
 
 To use JSON payload from a request:
-* Same as regular Flask
+* Same as regular Flask, use `request.get_json()`
 * Error returned when
   * JSON payload not in request
   * Wrong `Content-Type` header
@@ -380,131 +398,123 @@ data = request.get_json(silent=True)
 
 ## Authentication (using _Flask-JwT_ library)
 
+Steps to set up authentication and logging in:
 1. Create a `User` class
-```
-class User:
-    def __init__(self, _id, username, password):
-        self.id = _id
-        self.username = username
-        self.password = password    
-```
+    ```
+    class User:
+        def __init__(self, _id, username, password):
+            self.id = _id
+            self.username = username
+            self.password = password    
+    ```
 2. Create new file `security.py`
-  * **Data:** table of users, mappings
-  * **Functions:** authenticating, checking identity
-  * Use set-comprehension
-```
-from werkzeug.security import safe_str_cmp
-from user import user
+    * **Data:** table of users, mappings
+    * **Functions:** authenticating, checking identity
+    * Use set-comprehension
+    ```
+    from werkzeug.security import safe_str_cmp
+    from user import user
 
-# Table of users
-users = [
-    User(1, 'Da Boss', 'meow123')
-]
+    # Table of users
+    users = [
+        User(1, 'Da Boss', 'meow123')
+    ]
 
-# Index by username
-username_mapping = {u.username: u for u in users}
+    # Index by username
+    username_mapping = {u.username: u for u in users}
 
-# Index by userid
-userid_mapping = {u.id: u for u in users}
+    # Index by userid
+    userid_mapping = {u.id: u for u in users}
 
-def authenticate(username, password):
-    user = username_mapping.get(username, None)
-    if user and safe_str_cmp(user.password, password):
-        return user
+    def authenticate(username, password):
+        user = username_mapping.get(username, None)
+        if user and safe_str_cmp(user.password, password):
+            return user
 
-def identity(payload): 
-    """
-    Input: contents of JwT token
-    """
-    user_id = payload['identity']
-    return userid_mapping.get(user_id)
-```
+    def identity(payload): 
+        """
+        Input: contents of JwT token
+        """
+        user_id = payload['identity']
+        return userid_mapping.get(user_id)
+    ```
 
-which is an alternative to defining users in terms of dictionaries
-```
-# Table of users
-users = [
-    {
-        'id': 1,
-        'username': 'Da Boss',
-        'password': 'meow123'
+    which is an alternative to defining users in terms of dictionaries
+
+    ```
+    # Table of users
+    users = [
+        {
+            'id': 1,
+            'username': 'Da Boss',
+            'password': 'meow123'
+        }
+    ]
+
+    # Index by username
+    username_mapping = {
+        'Da Boss': {
+            'id': 1,
+            'username': 'Da Boss',
+            'password': 'meow123'
+        }
     }
-]
 
-# Index by username
-username_mapping = {
-    'Da Boss': {
-        'id': 1,
-        'username': 'Da Boss',
-        'password': 'meow123'
+    # Index by userid
+    userid_mapping = {
+        1: {
+            'id': 1,
+            'username': 'Da Boss',
+            'password': 'meow123'        
+        }
     }
-}
+    ```
+3. Update `app.py` file with the following:
+    * Import the necessary libraries and methods
+    ```
+    from flask_jwt import JWT
 
-# Index by userid
-userid_mapping = {
-    1: {
-        'id': 1,
-        'username': 'Da Boss',
-        'password': 'meow123'        
-    }
-}
-```
-3. Update `app.py` file with the following lines:
+    from security import authenticate, identity
+    ```
 
-  * Import the necessary libraries and methods:
-```
-from flask_jwt import JWT
+    * Set secret key and instantiate JWT object
+      * New endpoint `\auth` created, will take in payload with username and password
+      * JWT object will send username, password to `authenticate` function in `security.py`
+      * If authenticated, `\auth` endpoint returns a JWT token  
+    ```
+    app.secret_key = 'meow' # keep secret
+    jwt = JWT(app, authenticate, identity) # create endpoint /auth
+    ```
 
-from security import authenticate, identity
-```
-  * Here:
-    * New endpoint `\auth` created, takes in payload with username and password
-    * JWT sends username, password to `authenticate` function
-    * If authenticated, `\auth` endpoint returns a JWT token  
-```
-app.secret_key = 'meow' # keep secret
-jwt = JWT(app, authenticate, identity) # create endpoint /auth
-```
-  * To set endpoint to require a JWT token:
-```
-@jwt_required()
-def get(self, name):
-    ...
-```
+    * Configure endpoints which require JWT tokens
+    ```
+    @jwt_required()
+    def get(self, name):
+        ...
+    ```
 
-* **How `flask-jwt` works**
+How `flask-jwt` works:
   1. Send POST request to `\auth` endpoint
       * Header: `Content-Type` | `application/json`
       * Body: `raw` | `{'username': ..., 'password' ...}`
   2. Flask JWT checks username, password with `authenticate` function
   3. If valid, returns an `access_token`
-      * Correct token, not expired
+      * Correct token and not expired
   4. Send POST request to endpoint which requires token (i.e. has decorator `@jwt_required()`)
       * Header: `Authorization` | `JWT <token_from_step_2>`
   5. Flask takes token in header, decodes it to retrieve the userid using `identity` function
   5. If userid exists, it indicates that user is logged in
   6. Method associated to endpoint is called, returns response as per usual
 
-**Notes for authentication:**
+Notes for authentication:
 * Use safe-string comparison using `werkzeug` library
   * Avoid comparing strings directly using `==`
   * Due to different Python versions and encodings (e.g. ascii, unicode)
-```
-from werkzeug.security import safe_str_cmp
+  ```
+  from werkzeug.security import safe_str_cmp
 
-...safe_str_cmp(user.password, password)...
-```
-
-## Other things to note for API design
-* All methods names should be **unique**
-* Always return a text-form of a dictionary (use `jsonify`)
-  * **No lists**
-* JSON always uses **double-quotes**
-* Return an error if resource not found
-  * E.g. status code 404
-* Test-driven development
-  * Consider whether the endpoint is necessary or not
-
+  ...safe_str_cmp(user.password, password)...
+  ```
 
 # API Testing
 
@@ -620,7 +630,6 @@ Detailed information:
     * E.g. opened files etc
     * In `finally` block
     * Recover object to safe state (in cases like e.g. disk full, failed network connection etc) in languages without garbage collection or when there is exception-handling in a class constructor
-  *  
 
 Python code examples:
 
@@ -710,7 +719,7 @@ except SomeError:
 
 
 
-
+---
 
 * https://www.udemy.com/course/advanced-rest-apis-flask-python/ has OAuth, Postman tests
 * https://www.udemy.com/course/rest-api-flask-and-python/ has deployment to heroku, api security
