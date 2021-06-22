@@ -203,6 +203,8 @@ Possible responses to a request:
 
 ## Good security practices
 
+Resources: https://books.tecladocode.com/rest-apis-with-flask-and-python/domains-and-https/what-is-a-domain
+
 * Keep communication between client and server private
   * Use SSL/TLS protocol
 * _SSL (Secure Sockets Layer)_
@@ -553,6 +555,53 @@ Notes for authentication:
   ...safe_str_cmp(user.password, password)...
   ```
 
+## Authentication (using _Flask-JwT-Extended_ library)
+
+#TODO
+
+* Extended functionality from `Flask-JwT` library: **token refreshing**
+* Allows getting of a new JwT without asking user for username and password again when previous token expires
+
+1. Code should have the following
+    ```
+    from flask_kwt
+
+    app.config['PROPOGATE_EXCEPTIONS'] = True
+    ```
+
+* Difference 1
+    ```
+    app.config['PROPOGATE_EXCEPTIONS'] = True
+    ```
+    * With this added line, if `Flask_JwT` raises error, Flask app does not see it
+    * For example, not authorised error 401 raised but Flask app will return error 500
+    * By allowing propagation of exceptions, `Flask-JwT` can raise its own exceptions, return own codes and message
+* Difference 2
+   ```
+   data = Item.parser.parse_args()
+   item = ItemModel(name, **data)
+   ```
+   was previously
+   ```
+   item = ItemModel(name, data['price'])
+   ```
+   * Makes things nicer (?)
+   * Passes values as a named argument
+* Difference 3
+   ```
+   ...
+   return {'items': list(map(lambda x: x.json(), ItemModel.query.all()))}
+   ```
+   to
+   ```
+   ...
+   return {'items': [x.json() for x in ItemModel.query.all()]}
+   ```
+   * Use list comprehension which is slightly faster
+
+
+
+
 # Deploying Application
 
 * Requires _nginx_ and _uwsgi_ setups
@@ -568,6 +617,7 @@ Content-Type  | application/json
 
 ## Using Postman
 
+Creating a request:
 1. Select HTTP verb
 2. Enter URL
 3. If POST with data, let server expect JSON in body of request
@@ -576,6 +626,44 @@ Content-Type  | application/json
 
 Tips:
 * Keep all API endpoints saved in Postman for easy testing
+* Save files with names like
+    ```
+    /item/<name>
+    ```
+
+Setting environments:
+* To set variables for repeated strings
+* Settings icon > Manage Environments > Fill in (variable, value) pair
+* Example
+    ```
+    {{url}}/users
+    ```
+
+Testing and asserting:
+* Use the Tests tab (along Authorization, Headers, Body etc)
+* Use tokens received and set it as an environment variable
+   ```
+   postman.setEnvironmentVariable('jwt_token', jsonData.access_token);
+   ```
+* Check response time of API
+    ```
+    tests["Response time is less than 200ms] = responseTime < 200;
+    ```
+* Check status code of API
+    ```
+    tests["Status code is 200"] = responseCode.code === 200;
+    ```
+* Check returned data in response
+    ```
+    var jsonData = JSON.parse(responseBody);
+    // Check whether token is not empty
+    tests["Access token was not empty"] = jsonData.access_token !== undefined;
+    ``` 
+
+
+
+
+
 
 
 # API Documentation
@@ -891,6 +979,98 @@ To check if things are working fine:
 cat var/www/html/<app_name>/log/uwsgi.log
 ```
 
+## Setting up DNS and SSL
+
+* Mainly related to the security of REST APIs
+* To ensure connection between server and CDN is encrypted using your private key
+
+How to set up a DNS (Domain Name System):
+* Servers involved in a DNS query
+    * root
+    * TLD nameservers: know which nameserver know the IP addres the domain points to
+    * Authoritative nameservers: know which IP address your domain points to
+1. Buy a domain at a domain registrar
+    * E.g. namecheap
+2. Set up domain at a CDN (Content Delivery Network)
+    * E.g. Cloudflare
+    * Sits in front of server, any access to domain will be through CDN
+    * Site can be stored at CDN servers for faster speeds, security (provides caching, SSL cert)
+3. Update nameservers at domain registrar with custom ones provided by CDN
+    * Essentially changing DNS servers
+    * Takes a while to update
+4. Configure the right DNS records
+    * **A**: stores server IPv4 address which domain points to
+    * **AAAA**: stores server IPv6 address mapping
+    * **CNAME**: domain name that points another name (e.g. www.google.com is an alias of google.com)
+    * **MX**: for email forwarding to server
+    * **TXT**: for verification purposes (used for emails, to know that domain is valid to do email forwarding)
+
+Create a SSL certificate:
+1. Generate signing key and Certificate Signing Request (CSR)
+    * For example, in Cloudflare using Chrome
+2. Check hostnames
+    * For example, `*.<app_name>.com`
+3. Retrieve origin certificate and private key
+4. Store them somewhere safe
+5. May take up to 24 hours for SSL to be active
+
+Setup up _nginx_ with SSL:
+* To serve HTTPS traffic using _nginx_
+1. Create directory
+    ```
+    sudo mkdir /var/www/ssl
+    ```
+2. In that directory, create files for private key and certificate, paste contents
+    * Include `BEGIN` and `END`
+    ```
+    <app_name>.com.pem
+    <app_name>.com.key
+    ```
+3. Edit file `/etc/nginx/site-available/<app_name>.conf`
+    ```
+    server {
+      # Edit line from listen 80
+      listen 443 default_server;
+
+      # Add the following lines
+      server_name <app_name>.com;
+      ssl on;
+      ssl_certificate /var/www/ssl/<app_name>.com.pem;
+      ssl_certificate_key /var/www/ssl/<app_name>.com.key;
+
+      # Delete this line (duplicate server)
+      server_name localhost;
+      ...
+    }
+
+    ```
+4. To allow HTTP request to still be handled, add another `server{}` block in the same file
+    * To send HTTP request to HTTPS equivalent
+    * Rewrite everything after server name (`/`) into a HTTPS request
+    * Make it permanent such that future requests will continue on HTTPS 443
+    ```
+    server {
+      listen 443 default_server;
+      ...
+    }
+
+    server {
+      listen 80;
+      server_name <app_name>.com;
+      rewrite ^/(.*) https://<app_name>.com/$1 permanent;
+    }
+    ```
+5. Reload firewall configuration
+    ```
+    sudo ufw allow https
+    ```
+6. Restart nginx
+    ```
+    sudo systemctl reload nginx
+    sudo systemctl restart nginx
+    ```
+7. Test HTTPS request on Postman
+
 
 # References
 * Microservices
@@ -915,7 +1095,6 @@ cat var/www/html/<app_name>/log/uwsgi.log
 ---
 
 * https://www.udemy.com/course/advanced-rest-apis-flask-python/ has OAuth, Postman tests
-* https://www.udemy.com/course/rest-api-flask-and-python/ has deployment to heroku, api security
 * https://www.udemy.com/course/python-rest-apis-with-flask-docker-mongodb-and-aws-devops/
 * Consider using OOP
 * https://martinfowler.com/articles/data-monolith-to-mesh.html
